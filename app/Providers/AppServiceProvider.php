@@ -6,6 +6,8 @@ use App\Repositories\BookRepository;
 use App\Repositories\BookRepositoryInterface;
 use App\Services\BookService;
 use App\Services\BookServiceInterface;
+use App\Services\CalculatorService;
+use App\Services\CalculatorServiceInterface;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -20,6 +22,11 @@ class AppServiceProvider extends ServiceProvider
         $this->app->bind(
             BookServiceInterface::class,
             BookService::class
+        );
+
+        $this->app->bind(
+            CalculatorServiceInterface::class,
+            CalculatorService::class
         );
     }
 
