@@ -1,0 +1,43 @@
+trigger:
+  tags:
+    include:
+      - '*'
+pool:
+  name: DEV-build-agents
+
+resources:
+  repositories:
+    - repository: templates
+      type: git
+      name: Devops_Shared/PipelineTemplates
+      ref: main
+
+stages:
+  - stage: Build
+    jobs:
+    - job: Build
+      variables:
+      - group: 'Pipeline variables'
+      steps:
+      - bash: |
+         TAG=$(git describe --tags --abbrev=0)
+         echo "##vso[task.setvariable variable=tag]$TAG"
+        displayName: 'Get latest git tag'
+      - checkout: self
+        persistCredentials: true
+        clean: true
+        path: 's'
+      - script: |
+          if [[ $(Build.SourceBranchName) =~ ^v?[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+             tag=$(git describe --tags --abbrev=0)
+          else
+             tag=$(Build.BuildNumber)-$(Build.SourceBranchName)
+          fi
+            echo "##vso[build.updatebuildnumber]$tag"
+        displayName: 'Set build number from git tag or build version'
+      - template: ci-common/step-buildah.yml@templates
+        parameters:
+          ImageName: 'devops/test-php'
+          DockerFile: './Dockerfile-KIM'
+          ImageTag: $(Build.BuildNumber)
+          BuildArg: 'USERNAME=$(DockerRegistryUser) --build-arg PASSWORD=$(DockerRegistryPassword)'

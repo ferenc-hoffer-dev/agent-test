@@ -1,0 +1,51 @@
+FROM proxy.images.az-kim.tech01.corp.posta.hu/composer:2.5.4 as vendor
+ENV NODE_ENV=DEV
+
+WORKDIR /app
+COPY . .
+
+RUN apk add npm && \
+    composer install \
+    -o \
+    --no-dev \
+    --no-interaction \
+    --no-plugins \
+    --no-scripts \
+    --ignore-platform-req=ext-intl \
+    --ignore-platform-req=ext-gd \
+    --ignore-platform-req=ext-exif \
+    --ignore-platform-req=ext-redis \
+    --ignore-platform-req=ext-elastic_apm \
+    --prefer-dist
+
+FROM releases.images.az-kim.tech01.corp.posta.hu/base-image/php:1.6.2 as app
+ARG USERNAME
+ARG PASSWORD
+
+ENV TZ="Europe/Budapest"
+WORKDIR /var/www/html
+USER root
+COPY --from=vendor app/vendor/ ./vendor/
+COPY . .
+
+# RUN curl https://$USERNAME:$PASSWORD@nexus.images.az-kim.tech01.corp.posta.hu/repository/github-main/elastic/apm-agent-php/releases/download/v1.15.0/apm-agent-php-1.15.0-1.x86_64.rpm --output apm-php.rpm
+# RUN rpm -ivh apm-php.rpm test
+RUN curl https://$USERNAME:$(echo "$PASSWORD" | sed 's/\//%2F/g')@nexus.images.az-kim.tech01.corp.posta.hu/repository/github-main/elastic/apm-agent-php/releases/download/v1.15.0/apm-agent-php-1.15.0-1.x86_64.rpm -vvv --output apm-php.rpm
+RUN rpm -ivh apm-php.rpm
+
+ENV SSL_CERT_FILE=/pki/ca/ca-bundle.crt
+
+RUN mkdir -p storage/logs/ && \
+    mkdir -p storage/framework/cache/laravel-excel/ && \
+    chgrp -R root . && \
+    chmod -R 0777 . && \
+    rm -rf tests/ .git/ .azuredevops/ *.md *.yml *.config.js .env.* Makefile Dockerfile* phpstan.neon.dist *.xml sonar-project.properties .gitignore .gitattributes .editorconfig bin/ .githooks/ docker/ stubs/ && \
+    rm -rf vendor/*/test/ vendor/*/tests/*
+
+RUN php artisan event:cache
+RUN php artisan view:cache
+RUN php artisan route:cache
+
+ENTRYPOINT ["/var/www/html/start-pod"]
+
+EXPOSE 8080
